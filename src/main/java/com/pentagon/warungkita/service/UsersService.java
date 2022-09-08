@@ -4,7 +4,9 @@ import com.pentagon.warungkita.dto.PassworRequest;
 import com.pentagon.warungkita.dto.UsersRequestDTO;
 import com.pentagon.warungkita.model.Users;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.Optional;
 
 public interface UsersService {
@@ -22,6 +24,7 @@ public interface UsersService {
     ResponseEntity<Object> becameSeller();
     ResponseEntity<Object> userDetail();
     ResponseEntity<Object> deactiveUserById();
-
     ResponseEntity<Object> update(UsersRequestDTO requestDTO);
+    ResponseEntity uploadUser(MultipartFile file) throws IOException;
+
 }

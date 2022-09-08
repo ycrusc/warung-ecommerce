@@ -12,17 +12,26 @@ import com.pentagon.warungkita.repository.UsersRepo;
 import com.pentagon.warungkita.response.ResponseHandler;
 import com.pentagon.warungkita.security.service.UserDetailsImpl;
 import com.pentagon.warungkita.service.UsersService;
+import com.pentagon.warungkita.util.PoiUtils;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.*;
 
 @Service
@@ -46,14 +55,14 @@ public class UsersServiceImpl implements UsersService {
     @Override
     public ResponseEntity<Object> getAll() {
         List<Users> users = usersRepo.findAll();
-        if(users.isEmpty()){
+        if (users.isEmpty()) {
             throw new ResourceNotFoundException("User not exist");
         }
         try {
             List<Users> result = usersRepo.findAll();
             List<UsersResponseDTO> usersResponseDTOList = new ArrayList<>();
             logger.info("==================== Logger Start Get All User ====================");
-            for (Users dataresult:result){
+            for (Users dataresult : result) {
                 Map<String, Object> order = new HashMap<>();
                 order.put("role            : ", dataresult.getRoles());
                 order.put("id_akun         : ", dataresult.getUserId());
@@ -93,7 +102,7 @@ public class UsersServiceImpl implements UsersService {
         /**
          * Logic add role buyer when creating new user
          * */
-        if(users.getRoles() == null){
+        if (users.getRoles() == null) {
             Roles role = rolesRepo.findByName("ROLE_BUYER");
             List<Roles> roles = new ArrayList<>();
             roles.add(role);
@@ -106,7 +115,7 @@ public class UsersServiceImpl implements UsersService {
 
     public Optional<Users> getUserById(Long users_Id) {
         Optional<Users> optionalUser = usersRepo.findById(users_Id);
-        if(optionalUser.isEmpty()){
+        if (optionalUser.isEmpty()) {
             throw new ResourceNotFoundException("User not exist with id :" + users_Id);
         }
         return this.usersRepo.findById(users_Id);
@@ -115,7 +124,7 @@ public class UsersServiceImpl implements UsersService {
     @Override
     public Users updateUser(Users users) {
         Optional<Users> optionalUser = usersRepo.findById(users.getUserId());
-        if(optionalUser.isEmpty()){
+        if (optionalUser.isEmpty()) {
             throw new ResourceNotFoundException("User not exist with id :" + users.getUserId());
         }
 
@@ -127,7 +136,7 @@ public class UsersServiceImpl implements UsersService {
     public ResponseEntity<Object> deleteUserById(Long users_Id) {
         try {
             Optional<Users> optionalUser = usersRepo.findById(users_Id);
-            if(optionalUser.isEmpty()){
+            if (optionalUser.isEmpty()) {
                 throw new ResourceNotFoundException("User not exist with id :" + users_Id);
             }
             Users users = usersRepo.getReferenceById(users_Id);
@@ -139,11 +148,11 @@ public class UsersServiceImpl implements UsersService {
             logger.info(response);
             logger.info("==================== Logger End Hard Delete User By ID =================");
             return ResponseHandler.generateResponse("Successfully Delete User! ", HttpStatus.OK, response);
-        } catch (ResourceNotFoundException e){
+        } catch (ResourceNotFoundException e) {
             logger.error("------------------------------------");
             logger.error(e.getMessage());
             logger.error("------------------------------------");
-            return ResponseHandler.generateResponse(e.getMessage(), HttpStatus.NOT_FOUND, "Data Not Found!" );
+            return ResponseHandler.generateResponse(e.getMessage(), HttpStatus.NOT_FOUND, "Data Not Found!");
         }
     }
 
@@ -162,7 +171,7 @@ public class UsersServiceImpl implements UsersService {
             if (usersRepo.existsByEmail(usersRequestDTO.getEmail())) {
                 throw new Exception("Email already in use!");
             }
-            if(usersRequestDTO.getRoles() == null){
+            if (usersRequestDTO.getRoles() == null) {
                 Roles role = rolesRepo.findByName("ROLE_BUYER");
                 List<Roles> roles = new ArrayList<>();
                 roles.add(role);
@@ -190,16 +199,16 @@ public class UsersServiceImpl implements UsersService {
         try {
             UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             Users user1 = this.findById(userDetails.getUserId());
-            if (!Objects.equals(request.getConfirmUsername(), userDetails.getUsername())){
+            if (!Objects.equals(request.getConfirmUsername(), userDetails.getUsername())) {
                 throw new ResourceNotFoundException("Username is wrong");
             }
-            if (userDetails.getPassword().equals(request.getPassword())){
+            if (userDetails.getPassword().equals(request.getPassword())) {
                 throw new ResourceNotFoundException("Password is same");
             }
-            if (!Objects.equals(request.getPassword(), request.getConfirmPassword())){
+            if (!Objects.equals(request.getPassword(), request.getConfirmPassword())) {
                 throw new ResourceNotFoundException("Password is not match, try again");
             }
-            if (passwordEncoder.matches(request.getPassword(), userDetails.getPassword())){
+            if (passwordEncoder.matches(request.getPassword(), userDetails.getPassword())) {
                 throw new ResourceNotFoundException("Password cannot be the same as the previous password");
             }
             user1.setPassword((passwordEncoder.encode(request.getPassword())));
@@ -209,12 +218,12 @@ public class UsersServiceImpl implements UsersService {
             logger.info("==================== Logger Start Update User By ID ====================");
             logger.info(result);
             logger.info("==================== Logger End Update User By ID =================");
-            return ResponseHandler.generateResponse("Successfully Updated Password!",HttpStatus.OK, result);
-        }catch(Exception e){
+            return ResponseHandler.generateResponse("Successfully Updated Password!", HttpStatus.OK, result);
+        } catch (Exception e) {
             logger.error("------------------------------------");
             logger.error(e.getMessage());
             logger.error("------------------------------------");
-            return ResponseHandler.generateResponse(e.getMessage(),HttpStatus.NOT_FOUND,"Bad Request!!");
+            return ResponseHandler.generateResponse(e.getMessage(), HttpStatus.NOT_FOUND, "Bad Request!!");
         }
     }
 
@@ -237,12 +246,12 @@ public class UsersServiceImpl implements UsersService {
             logger.info("==================== Logger Start Update User By ID ====================");
             logger.info(result);
             logger.info("==================== Logger End Update User By ID =================");
-            return ResponseHandler.generateResponse("Successfully Updated User!",HttpStatus.OK, result);
-        }catch(Exception e){
+            return ResponseHandler.generateResponse("Successfully Updated User!", HttpStatus.OK, result);
+        } catch (Exception e) {
             logger.error("------------------------------------");
             logger.error(e.getMessage());
             logger.error("------------------------------------");
-            return ResponseHandler.generateResponse(e.getMessage(),HttpStatus.NOT_FOUND,"Bad Request!!");
+            return ResponseHandler.generateResponse(e.getMessage(), HttpStatus.NOT_FOUND, "Bad Request!!");
         }
     }
 
@@ -265,7 +274,7 @@ public class UsersServiceImpl implements UsersService {
             logger.info(result);
             logger.info("==================== Logger End Update User By ID =================");
             return ResponseHandler.generateResponse("Successfully Open Shop", HttpStatus.CREATED, result);
-        }catch (Exception e){
+        } catch (Exception e) {
             logger.error("------------------------------------");
             logger.error(e.getMessage());
             logger.error("------------------------------------");
@@ -289,7 +298,7 @@ public class UsersServiceImpl implements UsersService {
             logger.error("------------------------------------");
             logger.error(e.getMessage());
             logger.error("------------------------------------");
-            return ResponseHandler.generateResponse(e.getMessage(), HttpStatus.NOT_FOUND, "Data Not Found!" );
+            return ResponseHandler.generateResponse(e.getMessage(), HttpStatus.NOT_FOUND, "Data Not Found!");
         }
     }
 
@@ -308,14 +317,15 @@ public class UsersServiceImpl implements UsersService {
             logger.info("==================== Logger Start Update User By ID ====================");
             logger.info(result);
             logger.info("==================== Logger End Update User By ID =================");
-            return ResponseHandler.generateResponse("Successfully Updated User. If you change username, please login again.",HttpStatus.OK, result);
-        }catch(Exception e){
+            return ResponseHandler.generateResponse("Successfully Updated User. If you change username, please login again.", HttpStatus.OK, result);
+        } catch (Exception e) {
             logger.error("------------------------------------");
             logger.error(e.getMessage());
             logger.error("------------------------------------");
-            return ResponseHandler.generateResponse(e.getMessage(),HttpStatus.NOT_FOUND,"Bad Request!!");
+            return ResponseHandler.generateResponse(e.getMessage(), HttpStatus.NOT_FOUND, "Bad Request!!");
         }
     }
+
 
     @Override
     public ResponseEntity<Object> deactiveUserById() {
@@ -330,11 +340,42 @@ public class UsersServiceImpl implements UsersService {
             logger.info(response);
             logger.info("==================== Logger End Hard Delete User By ID =================");
             return ResponseHandler.generateResponse("Successfully Delete User! ", HttpStatus.OK, response);
-        } catch (ResourceNotFoundException e){
+        } catch (ResourceNotFoundException e) {
             logger.error("------------------------------------");
             logger.error(e.getMessage());
             logger.error("------------------------------------");
-            return ResponseHandler.generateResponse(e.getMessage(), HttpStatus.NOT_FOUND, "Data Not Found!" );
+            return ResponseHandler.generateResponse(e.getMessage(), HttpStatus.NOT_FOUND, "Data Not Found!");
         }
     }
+
+    @Override
+    @Transactional()
+    public ResponseEntity uploadUser(MultipartFile file) throws IOException {
+        FileInputStream fis = (FileInputStream) file.getInputStream();
+        Workbook wb = new XSSFWorkbook(fis);
+        Sheet sheet = wb.getSheetAt(0);
+        List<Users> users = new ArrayList<>();
+
+        boolean duplicate = false;
+        List<String> userDuplicate = new ArrayList<>();
+        for (Row row : sheet) {
+            if (row.getRowNum() == 0) continue;
+            Users user = new Users();
+            user.setAddress(PoiUtils.cellValue(row.getCell(0)));
+            user.setEmail(PoiUtils.cellValue(row.getCell(1)));
+            user.setFullName(PoiUtils.cellValue(row.getCell(2)));
+            user.setPassword(passwordEncoder.encode(PoiUtils.cellValue(row.getCell(3))));
+            user.setPhoneNum(PoiUtils.cellValue(row.getCell(4)));
+            user.setUsername(PoiUtils.cellValue(row.getCell(5)));
+            user.setActive(true);
+            users.add(user);
+
+        }
+        if (duplicate) {
+            return ResponseHandler.generateResponse("Bad Request", HttpStatus.NOT_FOUND, "Data Not Found!");
+        }
+        usersRepo.saveAll(users);
+        return ResponseHandler.generateResponse("Successfully", HttpStatus.OK, users);
+    }
 }
+

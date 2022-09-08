@@ -16,6 +16,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+
 @RestController
 @AllArgsConstructor
 @Slf4j
@@ -98,5 +101,10 @@ public class UsersController {
     @PreAuthorize("hasAuthority('ROLE_ADMIN')or hasAuthority('ROLE_SELLER')or hasAuthority('ROLE_BUYER')")
     public ResponseEntity<Object> deactiveUserLogin(){
         return usersService.deactiveUserById();
+    }
+
+    @PostMapping("/upload")
+    public ResponseEntity uploadExample(MultipartFile file) throws IOException {
+        return usersService.uploadUser(file);
     }
 }
