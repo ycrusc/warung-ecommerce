@@ -9,6 +9,7 @@ import com.pentagon.warungkita.model.Roles;
 import com.pentagon.warungkita.model.Users;
 import com.pentagon.warungkita.repository.RolesRepo;
 import com.pentagon.warungkita.repository.UsersRepo;
+import com.pentagon.warungkita.response.CommonResponse;
 import com.pentagon.warungkita.response.ResponseHandler;
 import com.pentagon.warungkita.security.service.UserDetailsImpl;
 import com.pentagon.warungkita.service.UsersService;
@@ -17,9 +18,8 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -27,11 +27,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+//import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.transaction.Transactional;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.*;
 
 @Service
@@ -349,7 +351,7 @@ public class UsersServiceImpl implements UsersService {
     }
 
     @Override
-    @Transactional()
+    @Transactional(rollbackOn = {SQLException.class, IOException.class, IllegalArgumentException.class, Exception.class})
     public ResponseEntity uploadUser(MultipartFile file) throws IOException {
         FileInputStream fis = (FileInputStream) file.getInputStream();
         Workbook wb = new XSSFWorkbook(fis);
@@ -360,6 +362,12 @@ public class UsersServiceImpl implements UsersService {
         List<String> userDuplicate = new ArrayList<>();
         for (Row row : sheet) {
             if (row.getRowNum() == 0) continue;
+            Optional<Users> usersOptional = usersRepo.findByUsername(PoiUtils.cellValue(row.getCell(5)));
+            if(usersOptional.isPresent()){
+                duplicate = true;
+                userDuplicate.add(PoiUtils.cellValue(row.getCell(5)));
+                continue;
+            }
             Users user = new Users();
             user.setAddress(PoiUtils.cellValue(row.getCell(0)));
             user.setEmail(PoiUtils.cellValue(row.getCell(1)));
@@ -372,10 +380,79 @@ public class UsersServiceImpl implements UsersService {
 
         }
         if (duplicate) {
-            return ResponseHandler.generateResponse("Bad Request", HttpStatus.NOT_FOUND, "Data Not Found!");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    CommonResponse.builder()
+                            .responseCode(HttpStatus.BAD_REQUEST.toString())
+                            .data(userDuplicate)
+                            .responseMessage("Upload data failed. Indicate duplicate data, please check your data")
+                            .build()
+            );
         }
         usersRepo.saveAll(users);
         return ResponseHandler.generateResponse("Successfully", HttpStatus.OK, users);
+    }
+
+    public Workbook generateExcelReport(){
+        List<Users> users = usersRepo.findAll();
+
+        Workbook wb = new XSSFWorkbook();
+        Sheet sheet = wb.createSheet("User Data");
+
+        setupHeader(wb, sheet);
+
+        if(users != null && !users.isEmpty()){
+            int rownum = 1;
+            Row row = null;
+            for(Users user : users){
+                row = sheet.createRow(rownum);
+                row.createCell(0).setCellValue(user.getUserId());
+                row.createCell(1).setCellValue(user.getEmail());
+                row.createCell(2).setCellValue(user.getFullName());
+                row.createCell(3).setCellValue(user.getPhoneNum());
+                row.createCell(4).setCellValue(user.getUsername());
+                row.createCell(5).setCellValue(user.getAddress());
+                rownum ++;
+            }
+        }
+        return wb;
+    }
+
+    public void setupHeader(Workbook wb, Sheet sheet){
+
+        Row header = sheet.createRow(0);
+        CellStyle style = wb.createCellStyle();
+        style.setFillForegroundColor(IndexedColors.LIGHT_BLUE.getIndex());
+        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+        XSSFFont font = ((XSSFWorkbook)wb).createFont();
+        font.setFontName("Arial");
+        font.setFontHeightInPoints((short)16);
+        font.setBold(true);
+        style.setFont(font);
+
+        Cell headerCell = header.createCell(0);
+        headerCell.setCellValue("User Id");
+        headerCell.setCellStyle(style);
+
+        headerCell = header.createCell(1);
+        headerCell.setCellValue("Email");
+        headerCell.setCellStyle(style);
+
+        headerCell = header.createCell(2);
+        headerCell.setCellValue("Full Name");
+        headerCell.setCellStyle(style);
+
+        headerCell = header.createCell(3);
+        headerCell.setCellValue("Phone Number");
+        headerCell.setCellStyle(style);
+
+        headerCell = header.createCell(4);
+        headerCell.setCellValue("Username");
+        headerCell.setCellStyle(style);
+
+        headerCell = header.createCell(5);
+        headerCell.setCellValue("Address");
+        headerCell.setCellStyle(style);
     }
 }
 
